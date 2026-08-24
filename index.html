@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"
+>
+
+<title>Frogventure</title>
+
+<style>
+
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+  -webkit-user-select:none;
+}
+
+html,
+body{
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#06140d;
+  touch-action:none;
+}
+
+body{
+  position:fixed;
+  inset:0;
+}
+
+canvas{
+  position:fixed;
+  inset:0;
+
+  display:block;
+
+  width:100vw !important;
+  height:100vh !important;
+
+  max-width:none !important;
+  max-height:none !important;
+
+  touch-action:none;
+}
+
+#ui{
+  position:fixed;
+  inset:0;
+
+  width:100vw;
+  height:100vh;
+
+  pointer-events:none;
+
+  color:white;
+
+  font-family:Georgia,serif;
+}
+
+#top{
+  position:absolute;
+
+  top:max(
+    14px,
+    env(safe-area-inset-top)
+  );
+
+  left:0;
+  right:0;
+
+  display:flex;
+  justify-content:space-between;
+
+  padding:0 18px;
+
+  z-index:10;
+
+  font-weight:bold;
+
+  text-shadow:
+    0 2px 4px #000;
+}
+
+.badge{
+  background:
+    linear-gradient(
+      180deg,
+      rgba(25,45,31,.88),
+      rgba(0,0,0,.55)
+    );
+
+  border:
+    1px solid
+    rgba(255,255,255,.22);
+
+  border-radius:22px;
+
+  padding:
+    8px 14px;
+
+  font-size:14px;
+
+  box-shadow:
+    0 3px 10px
+    rgba(0,0,0,.35);
+}
+
+#message{
+  position:absolute;
+
+  left:50%;
+  top:45%;
+
+  transform:
+    translate(-50%,-50%);
+
+  width:90%;
+
+  text-align:center;
+
+  opacity:0;
+
+  transition:
+    opacity .25s;
+
+  z-index:20;
+}
+
+#message h1{
+  margin:0 0 10px;
+
+  font-size:
+    clamp(36px,10vw,60px);
+
+  color:#ffd94a;
+
+  text-shadow:
+    0 4px 0 #573306,
+    0 7px 15px #000;
+}
+
+#message p{
+  margin:0;
+
+  font-size:17px;
+
+  color:#eee;
+}
+
+.gameButton{
+  pointer-events:auto;
+
+  position:absolute;
+
+  left:50%;
+
+  transform:
+    translateX(-50%);
+
+  z-index:25;
+
+  border:0;
+
+  border-radius:25px;
+
+  padding:
+    14px 30px;
+
+  min-width:130px;
+
+  font-family:Georgia,serif;
+
+  font-size:19px;
+
+  font-weight:bold;
+
+  color:#392404;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f7d765,
+      #d79c28
+    );
+
+  box-shadow:
+    0 5px 0 #70470d,
+    0 8px 18px
+    rgba(0,0,0,.45);
+}
+
+#start{
+  top:78%;
+}
+
+#restart{
+  top:78%;
+}
+
+.hidden{
+  display:none!important;
+}
+
+</style>
+</head>
+
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+
+  <div id="top">
+
+    <div class="badge">
+      SCORE
+      <span id="score">0</span>
+    </div>
+
+    <div class="badge">
+      LEVEL
+      <span id="level">1</span>
+    </div>
+
+  </div>
+
+  <div id="message">
+
+    <h1 id="msgTitle">
+      FROGVENTURE
+    </h1>
+
+    <p id="msgText">
+      Match three or more marbles!
+    </p>
+
+  </div>
+
+  <button
+    id="start"
+    class="gameButton"
+  >
+    PLAY
+  </button>
+
+  <button
+    id="restart"
+    class="gameButton hidden"
+  >
+    PLAY AGAIN
+  </button>
+
+</div>
+
+
+<script>
+
+/* =====================================================
+   FROGVENTURE
+   CLASSIC MARBLE PUZZLE
+===================================================== */
+
+
+/* =====================================================
+   CANVAS
+===================================================== */
+
+const canvas =
+  document.getElementById("game");
+
+const ctx =
+  canvas.getContext("2d");
+
+
+const scoreEl =
+  document.getElementById("score");
+
+const levelEl =
+  document.getElementById("level");
+
+const startBtn =
+  document.getElementById("start");
+
+const restartBtn =
+  document.getElementById("restart");
+
+const message =
+  document.getElementById("message");
+
+const msgTitle =
+  document.getElementById("msgTitle");
+
+const msgText =
+  document.getElementById("msgText");
+
+
+/* =====================================================
+   GAME VARIABLES
+===================================================== */
+
+let W = 0;
+let H = 0;
+let dpr = 1;
+
+let gameStarted = false;
+let gameOver = false;
+
+let level = 1;
+let score = 0;
+let combo = 0;
+
+let marbles = [];
+let particles = [];
+
+let shot = null;
+
+let spawnClock = 0;
+
+let lastTime = 0;
+
+let aim = {
+  x:0,
+  y:0
+};
+
+
+/* =====================================================
+   FROG
+===================================================== */
+
+let frog = {
+
+  x:0,
+  y:0,
+
+  angle:
+    -Math.PI / 2,
+
+  targetAngle:
+    -Math.PI / 2,
+
+  current:0,
+
+  next:0
+
+};
+
+
+/* =====================================================
+   COLORS
+===================================================== */
+
+const colors = [
+
+  "#d83b35",
+
+  "#e7c638",
+
+  "#3d91d3",
+
+  "#4fb84d",
+
+  "#a24db7",
+
+  "#ed7b31"
+
+];
+
+
+/* =====================================================
+   RESIZE
+===================================================== */
+
+function resize(){
+
+  W =
+    window.innerWidth;
+
+  H =
+    window.innerHeight;
+
+
+  dpr =
+    Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
+
+
+  canvas.width =
+    Math.floor(W * dpr);
+
+  canvas.height =
+    Math.floor(H * dpr);
+
+
+  canvas.style.width =
+    "100vw";
+
+  canvas.style.height =
+    "100vh";
+
+
+  ctx.setTransform(
+    dpr,
+    0,
+    0,
+    dpr,
+    0,
+    0
+  );
+
+
+  /*
+    Keep frog lower-center.
+  */
+
+  frog.x =
+    W / 2;
+
+  frog.y =
+    H * .73;
+
+
+  /*
+    Default aiming position.
+  */
+
+  if(
+    !aim.x &&
+    !aim.y
+  ){
+
+    aim.x =
+      W / 2;
+
+    aim.y =
+      H * .35;
+
+  }
+
+}
+
+window.addEventListener(
+  "resize",
+  resize
+);
+
+window.addEventListener(
+  "orientationchange",
+  ()=>{
+    setTimeout(
+      resize,
+      100
+    );
+  }
+);
+
+resize();
+
+
+/* =====================================================
+   PATH
+===================================================== */
+
+const PATH_LENGTH = 2800;
+
+
+function pathPoint(t){
+
+  const p =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        t / PATH_LENGTH
+      )
+    );
+
+
+  const margin =
+    Math.min(
+      52,
+      W * .09
+    );
+
+
+  const left =
+    margin;
+
+  const right =
+    W - margin;
+
+  const usable =
+    right - left;
+
+
+  let x;
+  let y;
+
+
+  /*
+    TOP:
+    left -> right
+  */
+
+  if(p < .22){
+
+    const q =
+      p / .22;
+
+    x =
+      left +
+      usable * q;
+
+    y =
+      H * .20;
+
+  }
+
+
+  /*
+    RIGHT:
+    down
+  */
+
+  else if(p < .42){
+
+    const q =
+      (p - .22) / .20;
+
+    x =
+      right;
+
+    y =
+      H * .20 +
+      H * .22 * q;
+
+  }
+
+
+  /*
+    MIDDLE:
+    right -> left
+  */
+
+  else if(p < .64){
+
+    const q =
+      (p - .42) / .22;
+
+    x =
+      right -
+      usable * q;
+
+    y =
+      H * .42;
+
+  }
+
+
+  /*
+    LEFT:
+    down
+  */
+
+  else if(p < .82){
+
+    const q =
+      (p - .64) / .18;
+
+    x =
+      left;
+
+    y =
+      H * .42 +
+      H * .22 * q;
+
+  }
+
+
+  /*
+    BOTTOM:
+    left -> right
+  */
+
+  else{
+
+    const q =
+      (p - .82) / .18;
+
+    x =
+      left +
+      usable * q;
+
+    y =
+      H * .64;
+
+  }
+
+
+  /*
+    Natural curve.
+  */
+
+  const curve =
+    Math.sin(
+      p * Math.PI * 8
+    ) * 9;
+
+
+  if(
+    p < .22 ||
+    (p >= .42 && p < .64) ||
+    p >= .82
+  ){
+
+    y += curve;
+
+  }
+  else{
+
+    x += curve;
+
+  }
+
+
+  return {
+    x:x,
+    y:y
+  };
+
+}
+
+
+/* =====================================================
+   RANDOM COLOR
+===================================================== */
+
+function randomColor(){
+
+  return Math.floor(
+    Math.random() *
+    colors.length
+  );
+
+}
+
+
+/* =====================================================
+   CREATE MARBLE
+===================================================== */
+
+function createMarble(
+  progress,
+  color
+){
+
+  if(
+    color === undefined
+  ){
+
+    color =
+      randomColor();
+
+  }
+
+
+  const p =
+    pathPoint(
+      progress
+    );
+
+
+  return {
+
+    progress:progress,
+
+    x:p.x,
+
+    y:p.y,
+
+    color:color,
+
+    radius:16
+
+  };
+
+}
+
+
+/* =====================================================
+   RESET LEVEL
+===================================================== */
+
+function resetLevel(){
+
+  marbles = [];
+
+  particles = [];
+
+  shot = null;
+
+  spawnClock = 0;
+
+  combo = 0;
+
+
+  frog.current =
+    randomColor();
+
+  frog.next =
+    randomColor();
+
+
+  /*
+    Easier Level 1.
+
+    More challenging levels
+    gradually get longer.
+  */
+
+  const starting =
+    Math.min(
+      12 + level * 2,
+      24
+    );
+
+
+  for(
+    let i = 0;
+    i < starting;
+    i++
+  ){
+
+    marbles.push(
+      createMarble(
+        -i * 31
+      )
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   START GAME
+===================================================== */
+
+function begin(){
+
+  gameStarted = true;
+
+  gameOver = false;
+
+  level = 1;
+
+  score = 0;
+
+  scoreEl.textContent =
+    "0";
+
+  levelEl.textContent =
+    "1";
+
+
+  startBtn.classList.add(
+    "hidden"
+  );
+
+  restartBtn.classList.add(
+    "hidden"
+  );
+
+
+  message.style.opacity =
+    "0";
+
+
+  resetLevel();
+
+
+  if(
+    navigator.vibrate
+  ){
+
+    navigator.vibrate(25);
+
+  }
+
+}
+
+
+/* =====================================================
+   GAME OVER
+===================================================== */
+
+function endGame(){
+
+  if(gameOver){
+    return;
+  }
+
+
+  gameOver = true;
+
+
+  msgTitle.textContent =
+    "GAME OVER";
+
+
+  msgText.textContent =
+    "The marbles reached the temple!";
+
+
+  message.style.opacity =
+    "1";
+
+
+  restartBtn.classList.remove(
+    "hidden"
+  );
+
+
+  if(
+    navigator.vibrate
+  ){
+
+    navigator.vibrate([
+      90,
+      50,
+      140
+    ]);
+
+  }
+
+}
+
+
+/* =====================================================
+   LEVEL CLEAR
+===================================================== */
+
+function winLevel(){
+
+  level++;
+
+
+  levelEl.textContent =
+    level;
+
+
+  msgTitle.textContent =
+    "LEVEL CLEAR!";
+
+
+  msgText.textContent =
+    "The ancient path opens...";
+
+
+  message.style.opacity =
+    "1";
+
+
+  if(
+    navigator.vibrate
+  ){
+
+    navigator.vibrate([
+      35,
+      45,
+      70
+    ]);
+
+  }
+
+
+  setTimeout(
+    ()=>{
+
+      if(
+        !gameOver
+      ){
+
+        message.style.opacity =
+          "0";
+
+        resetLevel();
+
+      }
+
+    },
+    1200
+  );
+
+}
+
+
+/* =====================================================
+   SHOOT
+===================================================== */
+
+function shoot(){
+
+  if(
+    !gameStarted ||
+    gameOver ||
+    shot
+  ){
+
+    return;
+
+  }
+
+
+  const dx =
+    aim.x -
+    frog.x;
+
+
+  const dy =
+    aim.y -
+    frog.y;
+
+
+  const distance =
+    Math.hypot(
+      dx,
+      dy
+    );
+
+
+  if(
+    distance < 25
+  ){
+
+    return;
+
+  }
+
+
+  shot = {
+
+    x:
+      frog.x +
+      Math.cos(
+        frog.angle
+      ) * 34,
+
+    y:
+      frog.y +
+      Math.sin(
+        frog.angle
+      ) * 34,
+
+    vx:
+      dx /
+      distance *
+      900,
+
+    vy:
+      dy /
+      distance *
+      900,
+
+    color:
+      frog.current,
+
+    radius:12,
+
+    life:2
+
+  };
+
+
+  frog.current =
+    frog.next;
+
+  frog.next =
+    randomColor();
+
+
+  if(
+    navigator.vibrate
+  ){
+
+    navigator.vibrate(8);
+
+  }
+
+}
+
+
+/* =====================================================
+   PARTICLE BURST
+===================================================== */
+
+function burst(
+  x,
+  y,
+  color
+){
+
+  for(
+    let i = 0;
+    i < 18;
+    i++
+  ){
+
+    const angle =
+      Math.random() *
+      Math.PI *
+      2;
+
+
+    const speed =
+      70 +
+      Math.random() *
+      170;
+
+
+    particles.push({
+
+      x:x,
+
+      y:y,
+
+      vx:
+        Math.cos(angle) *
+        speed,
+
+      vy:
+        Math.sin(angle) *
+        speed,
+
+      life:
+        .5 +
+        Math.random() *
+        .45,
+
+      size:
+        2 +
+        Math.random() *
+        4,
+
+      color:color
+
+    });
+
+  }
+
+}
+
+
+/* =====================================================
+   MATCHES
+===================================================== */
+
+function resolveMatches(
+  index
+){
+
+  if(
+    !marbles.length
+  ){
+
+    return;
+
+  }
+
+
+  let i =
+    Math.max(
+      0,
+      Math.min(
+        index,
+        marbles.length - 1
+      )
+    );
+
+
+  const color =
+    marbles[i].color;
+
+
+  let left = i;
+
+  let right = i;
+
+
+  while(
+    left > 0 &&
+    marbles[
+      left - 1
+    ].color === color
+  ){
+
+    left--;
+
+  }
+
+
+  while(
+    right <
+      marbles.length - 1 &&
+    marbles[
+      right + 1
+    ].color === color
+  ){
+
+    right++;
+
+  }
+
+
+  const count =
+    right -
+    left +
+    1;
+
+
+  if(
+    count >= 3
+  ){
+
+    combo++;
+
+
+    const points =
+      count *
+      10 *
+      combo;
+
+
+    score +=
+      points;
+
+
+    scoreEl.textContent =
+      score;
+
+
+    for(
+      let n = left;
+      n <= right;
+      n++
+    ){
+
+      burst(
+        marbles[n].x,
+        marbles[n].y,
+        colors[color]
+      );
+
+    }
+
+
+    marbles.splice(
+      left,
+      count
+    );
+
+
+    if(
+      navigator.vibrate
+    ){
+
+      navigator.vibrate(
+        Math.min(
+          90,
+          20 +
+          count * 9
+        )
+      );
+
+    }
+
+
+    /*
+      Chain reaction.
+    */
+
+    if(
+      left > 0 &&
+      left < marbles.length &&
+      marbles[
+        left - 1
+      ].color ===
+      marbles[left].color
+    ){
+
+      resolveMatches(
+        left
+      );
+
+    }
+
+  }
+  else{
+
+    combo = 0;
+
+  }
+
+}
+
+
+/* =====================================================
+   INSERT SHOT
+===================================================== */
+
+function insertShot(){
+
+  let closest =
+    Infinity;
+
+  let index =
+    marbles.length;
+
+
+  for(
+    let i = 0;
+    i < marbles.length;
+    i++
+  ){
+
+    const distance =
+      Math.hypot(
+        shot.x -
+        marbles[i].x,
+
+        shot.y -
+        marbles[i].y
+      );
+
+
+    if(
+      distance <
+      closest
+    ){
+
+      closest =
+        distance;
+
+      index =
+        i;
+
+    }
+
+  }
+
+
+  let progress;
+
+
+  if(
+    index <
+    marbles.length
+  ){
+
+    progress =
+      marbles[index].progress;
+
+  }
+  else if(
+    marbles.length
+  ){
+
+    progress =
+      marbles[
+        marbles.length - 1
+      ].progress - 28;
+
+  }
+  else{
+
+    progress = 0;
+
+  }
+
+
+  marbles.splice(
+    index,
+    0,
+    {
+
+      progress:
+        progress,
+
+      x:
+        shot.x,
+
+      y:
+        shot.y,
+
+      color:
+        shot.color,
+
+      radius:
+        16
+
+    }
+  );
+
+
+  shot = null;
+
+
+  resolveMatches(
+    index
+  );
+
+}
+
+
+/* =====================================================
+   UPDATE
+===================================================== */
+
+function update(dt){
+
+  if(
+    !gameStarted ||
+    gameOver
+  ){
+
+    return;
+
+  }
+
+
+  /*
+    SMOOTH FROG ROTATION
+
+    This is what makes
+    the controls feel
+    much less twitchy.
+  */
+
+  let angleDifference =
+    frog.targetAngle -
+    frog.angle;
+
+
+  while(
+    angleDifference >
+    Math.PI
+  ){
+
+    angleDifference -=
+      Math.PI * 2;
+
+  }
+
+
+  while(
+    angleDifference <
+    -Math.PI
+  ){
+
+    angleDifference +=
+      Math.PI * 2;
+
+  }
+
+
+  const rotationSpeed =
+    14;
+
+
+  frog.angle +=
+    angleDifference *
+    Math.min(
+      1,
+      rotationSpeed * dt
+    );
+
+
+  /*
+    Marble speed.
+
+    Level 1 is intentionally
+    slower.
+  */
+
+  const speed =
+    18 +
+    level * 3.2;
+
+
+  for(
+    const marble of marbles
+  ){
+
+    marble.progress +=
+      speed * dt;
+
+
+    const p =
+      pathPoint(
+        marble.progress
+      );
+
+
+    marble.x =
+      p.x;
+
+    marble.y =
+      p.y;
+
+  }
+
+
+  /*
+    Keep marbles together.
+  */
+
+  for(
+    let i = 1;
+    i < marbles.length;
+    i++
+  ){
+
+    const gap =
+      marbles[i].progress -
+      marbles[i - 1].progress;
+
+
+    if(
+      gap < 31
+    ){
+
+      marbles[i].progress =
+        marbles[i - 1].progress +
+        31;
+
+    }
+
+  }
+
+
+  /*
+    Temple entrance.
+  */
+
+  if(
+    marbles.length &&
+    marbles[
+      marbles.length - 1
+    ].progress >
+    PATH_LENGTH - 25
+  ){
+
+    endGame();
+
+    return;
+
+  }
+
+
+  /*
+    Spawn new marbles.
+
+    Level 1 is slower.
+  */
+
+  spawnClock +=
+    dt;
+
+
+  const spawnEvery =
+    Math.max(
+      .95,
+      1.8 -
+      level * .06
+    );
+
+
+  if(
+    spawnClock >
+      spawnEvery &&
+    marbles.length <
+      75
+  ){
+
+    spawnClock = 0;
+
+
+    marbles.unshift(
+      createMarble(
+        -35
+      )
+    );
+
+  }
+
+
+  /*
+    Level complete.
+  */
+
+  if(
+    marbles.length === 0 &&
+    !shot
+  ){
+
+    winLevel();
+
+  }
+
+
+  /*
+    Flying shot.
+  */
+
+  if(shot){
+
+    shot.x +=
+      shot.vx *
+      dt;
+
+    shot.y +=
+      shot.vy *
+      dt;
+
+
+    shot.life -=
+      dt;
+
+
+    let hit =
+      false;
+
+
+    for(
+      let i = 0;
+      i < marbles.length;
+      i++
+    ){
+
+      if(
+        Math.hypot(
+          shot.x -
+          marbles[i].x,
+
+          shot.y -
+          marbles[i].y
+        ) <
+        29
+      ){
+
+        insertShot();
+
+        hit = true;
+
+        break;
+
+      }
+
+    }
+
+
+    /*
+      If shot flies outside
+      the screen, remove it.
+    */
+
+    if(
+      !hit &&
+      shot
+    ){
+
+      if(
+        shot.x < -60 ||
+        shot.x > W + 60 ||
+        shot.y < -60 ||
+        shot.y > H + 60 ||
+        shot.life <= 0
+      ){
+
+        shot = null;
+
+      }
+
+    }
+
+  }
+
+
+  /*
+    Particles.
+  */
+
+  for(
+    const p of particles
+  ){
+
+    p.x +=
+      p.vx * dt;
+
+    p.y +=
+      p.vy * dt;
+
+    p.vy +=
+      160 * dt;
+
+    p.life -=
+      dt;
+
+  }
+
+
+  particles =
+    particles.filter(
+      p =>
+        p.life > 0
+    );
+
+}
+
+
+/* =====================================================
+   BACKGROUND
+===================================================== */
+
+function drawBackground(){
+
+  const gradient =
+    ctx.createLinearGradient(
+      0,
+      0,
+      0,
+      H
+    );
+
+
+  gradient.addColorStop(
+    0,
+    "#09271a"
+  );
+
+  gradient.addColorStop(
+    .5,
+    "#12452a"
+  );
+
+  gradient.addColorStop(
+    1,
+    "#04130c"
+  );
+
+
+  ctx.fillStyle =
+    gradient;
+
+
+  ctx.fillRect(
+    0,
+    0,
+    W,
+    H
+  );
+
+
+  /*
+    Temple blocks.
+  */
+
+  ctx.globalAlpha =
+    .18;
+
+
+  ctx.fillStyle =
+    "#b3a16c";
+
+
+  const blockH =
+    Math.max(
+      48,
+      H * .065
+    );
+
+
+  for(
+    let row = 0;
+    row < 14;
+    row++
+  ){
+
+    const y =
+      90 +
+      row * blockH;
+
+
+    const offset =
+      row % 2
+        ? -45
+        : 0;
+
+
+    for(
+      let x =
+        offset - 20;
+      x < W + 50;
+      x += 105
+    ){
+
+      ctx.fillRect(
+        x,
+        y,
+        97,
+        blockH - 6
+      );
+
+    }
+
+  }
+
+
+  ctx.globalAlpha =
+    1;
+
+
+  /*
+    Vines.
+  */
+
+  ctx.strokeStyle =
+    "rgba(18,105,48,.55)";
+
+  ctx.lineWidth = 5;
+
+
+  for(
+    let x = -20;
+    x < W + 30;
+    x += 70
+  ){
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      x,
+      0
+    );
+
+    ctx.bezierCurveTo(
+      x - 25,
+      H * .12,
+      x + 35,
+      H * .22,
+      x,
+      H * .32
+    );
+
+    ctx.stroke();
+
+  }
+
+
+  /*
+    Vignette.
+  */
+
+  const shadow =
+    ctx.createRadialGradient(
+      W / 2,
+      H * .55,
+      20,
+      W / 2,
+      H * .55,
+      H * .7
+    );
+
+
+  shadow.addColorStop(
+    0,
+    "rgba(0,0,0,0)"
+  );
+
+  shadow.addColorStop(
+    1,
+    "rgba(0,0,0,.45)"
+  );
+
+
+  ctx.fillStyle =
+    shadow;
+
+
+  ctx.fillRect(
+    0,
+    0,
+    W,
+    H
+  );
+
+}
+
+
+/* =====================================================
+   MARBLE PATH
+===================================================== */
+
+function drawPath(){
+
+  ctx.lineWidth =
+    42;
+
+  ctx.lineCap =
+    "round";
+
+  ctx.lineJoin =
+    "round";
+
+  ctx.strokeStyle =
+    "#80623b";
+
+
+  ctx.beginPath();
+
+
+  const first =
+    pathPoint(0);
+
+
+  ctx.moveTo(
+    first.x,
+    first.y
+  );
+
+
+  for(
+    let t = 10;
+    t <= PATH_LENGTH;
+    t += 10
+  ){
+
+    const p =
+      pathPoint(t);
+
+
+    ctx.lineTo(
+      p.x,
+      p.y
+    );
+
+  }
+
+
+  ctx.stroke();
+
+
+  /*
+    Dark center.
+  */
+
+  ctx.lineWidth =
+    30;
+
+  ctx.strokeStyle =
+    "#291e16";
+
+  ctx.stroke();
+
+
+  /*
+    Small highlight.
+  */
+
+  ctx.lineWidth =
+    2;
+
+  ctx.strokeStyle =
+    "rgba(255,214,130,.18)";
+
+  ctx.stroke();
+
+
+  /*
+    Temple entrance.
+  */
+
+  const end =
+    pathPoint(
+      PATH_LENGTH
+    );
+
+
+  const hole =
+    ctx.createRadialGradient(
+      end.x,
+      end.y,
+      3,
+      end.x,
+      end.y,
+      34
+    );
+
+
+  hole.addColorStop(
+    0,
+    "#000"
+  );
+
+  hole.addColorStop(
+    .65,
+    "#100c08"
+  );
+
+  hole.addColorStop(
+    1,
+    "#654a2b"
+  );
+
+
+  ctx.fillStyle =
+    hole;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    end.x,
+    end.y,
+    32,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  ctx.fillStyle =
+    "#d6c58e";
+
+  ctx.font =
+    "bold 21px Georgia";
+
+  ctx.textAlign =
+    "center";
+
+
+  ctx.fillText(
+    "☠",
+    end.x,
+    end.y + 8
+  );
+
+}
+
+
+/* =====================================================
+   MARBLE
+===================================================== */
+
+function drawMarble(
+  marble
+){
+
+  const r =
+    marble.radius;
+
+
+  /*
+    Shadow.
+  */
+
+  ctx.fillStyle =
+    "rgba(0,0,0,.35)";
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    marble.x + 2,
+    marble.y + 3,
+    r + 1,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Glass gradient.
+  */
+
+  const gradient =
+    ctx.createRadialGradient(
+      marble.x - r * .38,
+      marble.y - r * .45,
+      1,
+
+      marble.x,
+      marble.y,
+      r
+    );
+
+
+  gradient.addColorStop(
+    0,
+    "#ffffff"
+  );
+
+  gradient.addColorStop(
+    .14,
+    "#eeeeee"
+  );
+
+  gradient.addColorStop(
+    .23,
+    colors[marble.color]
+  );
+
+  gradient.addColorStop(
+    1,
+    "#1b0b09"
+  );
+
+
+  ctx.fillStyle =
+    gradient;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    marble.x,
+    marble.y,
+    r,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  ctx.strokeStyle =
+    "rgba(255,255,255,.35)";
+
+  ctx.lineWidth = 1;
+
+  ctx.stroke();
+
+}
+
+
+/* =====================================================
+   FROG
+===================================================== */
+
+function drawFrog(){
+
+  ctx.save();
+
+
+  ctx.translate(
+    frog.x,
+    frog.y
+  );
+
+
+  ctx.rotate(
+    frog.angle
+  );
+
+
+  /*
+    Shadow.
+  */
+
+  ctx.fillStyle =
+    "rgba(0,0,0,.38)";
+
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    0,
+    25,
+    46,
+    17,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Back body.
+  */
+
+  ctx.fillStyle =
+    "#245f28";
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    3,
+    37,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Main frog.
+  */
+
+  ctx.fillStyle =
+    "#4fae3d";
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    0,
+    31,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Belly.
+  */
+
+  ctx.fillStyle =
+    "#77bd55";
+
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    0,
+    8,
+    22,
+    18,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Eyes.
+  */
+
+  for(
+    const ex of [-14,14]
+  ){
+
+    ctx.fillStyle =
+      "#5cc54b";
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+      ex,
+      -25,
+      12,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    ctx.fillStyle =
+      "#111";
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+      ex,
+      -27,
+      4.5,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+  }
+
+
+  /*
+    Smile.
+  */
+
+  ctx.strokeStyle =
+    "#173b18";
+
+  ctx.lineWidth = 3;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    5,
+    17,
+    0,
+    Math.PI
+  );
+
+  ctx.stroke();
+
+
+  /*
+    Current marble.
+  */
+
+  const current =
+    ctx.createRadialGradient(
+      -5,
+      -6,
+      1,
+      0,
+      0,
+      15
+    );
+
+
+  current.addColorStop(
+    0,
+    "#fff"
+  );
+
+  current.addColorStop(
+    .18,
+    colors[frog.current]
+  );
+
+  current.addColorStop(
+    1,
+    "#210b07"
+  );
+
+
+  ctx.fillStyle =
+    current;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    0,
+    15,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  /*
+    Next marble.
+  */
+
+  ctx.rotate(
+    -frog.angle
+  );
+
+
+  ctx.fillStyle =
+    "rgba(0,0,0,.45)";
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    50,
+    13,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  const next =
+    ctx.createRadialGradient(
+      -4,
+      46,
+      1,
+      0,
+      50,
+      12
+    );
+
+
+  next.addColorStop(
+    0,
+    "#fff"
+  );
+
+  next.addColorStop(
+    .2,
+    colors[frog.next]
+  );
+
+  next.addColorStop(
+    1,
+    "#210b07"
+  );
+
+
+  ctx.fillStyle =
+    next;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    0,
+    50,
+    12,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+
+  ctx.restore();
+
+}
+
+
+/* =====================================================
+   FLYING MARBLE
+===================================================== */
+
+function drawShot(){
+
+  if(!shot){
+    return;
+  }
+
+
+  const r =
+    shot.radius;
+
+
+  const gradient =
+    ctx.createRadialGradient(
+      shot.x - 4,
+      shot.y - 5,
+      1,
+
+      shot.x,
+      shot.y,
+      r
+    );
+
+
+  gradient.addColorStop(
+    0,
+    "#fff"
+  );
+
+  gradient.addColorStop(
+    .2,
+    colors[shot.color]
+  );
+
+  gradient.addColorStop(
+    1,
+    "#210b07"
+  );
+
+
+  ctx.fillStyle =
+    gradient;
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    shot.x,
+    shot.y,
+    r,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+}
+
+
+/* =====================================================
+   PARTICLES
+===================================================== */
+
+function drawParticles(){
+
+  for(
+    const p of particles
+  ){
+
+    ctx.globalAlpha =
+      Math.max(
+        0,
+        p.life
+      );
+
+
+    ctx.fillStyle =
+      p.color;
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+      p.x,
+      p.y,
+      p.size,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+  }
+
+
+  ctx.globalAlpha =
+    1;
+
+}
+
+
+/* =====================================================
+   DRAW
+===================================================== */
+
+function draw(){
+
+  ctx.clearRect(
+    0,
+    0,
+    W,
+    H
+  );
+
+
+  drawBackground();
+
+  drawPath();
+
+
+  for(
+    const marble of marbles
+  ){
+
+    drawMarble(
+      marble
+    );
+
+  }
+
+
+  drawShot();
+
+  drawParticles();
+
+  drawFrog();
+
+}
+
+
+/* =====================================================
+   MOBILE CONTROLS
+===================================================== */
+
+/*
+  IMPORTANT:
+
+  We use POINTER EVENTS only.
+
+  This prevents iPhone from
+  firing both touch + pointer
+  events and causing double shots.
+*/
+
+
+function getPointerPosition(
+  event
+){
+
+  const rect =
+    canvas.getBoundingClientRect();
+
+
+  return {
+
+    x:
+      event.clientX -
+      rect.left,
+
+    y:
+      event.clientY -
+      rect.top
+
+  };
+
+}
+
+
+/*
+  Update where the frog
+  wants to aim.
+*/
+
+function aimFrog(
+  x,
+  y
+){
+
+  aim.x =
+    x;
+
+  aim.y =
+    y;
+
+
+  const dx =
+    x -
+    frog.x;
+
+
+  const dy =
+    y -
+    frog.y;
+
+
+  const distance =
+    Math.hypot(
+      dx,
+      dy
+    );
+
+
+  if(
+    distance > 20
+  ){
+
+    frog.targetAngle =
+      Math.atan2(
+        dy,
+        dx
+      );
+
+  }
+
+}
+
+
+/* =====================================================
+   FINGER DOWN
+===================================================== */
+
+canvas.addEventListener(
+  "pointerdown",
+  event => {
+
+    event.preventDefault();
+
+
+    /*
+      Only accept primary
+      finger/mouse input.
+    */
+
+    if(
+      event.isPrimary === false
+    ){
+
+      return;
+
+    }
+
+
+    /*
+      Lock pointer to canvas.
+    */
+
+    try{
+
+      canvas.setPointerCapture(
+        event.pointerId
+      );
+
+    }
+    catch(e){}
+
+
+    const pos =
+      getPointerPosition(
+        event
+      );
+
+
+    /*
+      Aim first.
+    */
+
+    aimFrog(
+      pos.x,
+      pos.y
+    );
+
+
+    /*
+      Shoot once.
+    */
+
+    shoot();
+
+  },
+  {
+    passive:false
+  }
+);
+
+
+/* =====================================================
+   FINGER MOVE
+===================================================== */
+
+canvas.addEventListener(
+  "pointermove",
+  event => {
+
+    event.preventDefault();
+
+
+    if(
+      event.isPrimary === false
+    ){
+
+      return;
+
+    }
+
+
+    const pos =
+      getPointerPosition(
+        event
+      );
+
+
+    /*
+      Smoothly update
+      target direction.
+    */
+
+    aimFrog(
+      pos.x,
+      pos.y
+    );
+
+  },
+  {
+    passive:false
+  }
+);
+
+
+/* =====================================================
+   FINGER UP
+===================================================== */
+
+canvas.addEventListener(
+  "pointerup",
+  event => {
+
+    event.preventDefault();
+
+
+    try{
+
+      canvas.releasePointerCapture(
+        event.pointerId
+      );
+
+    }
+    catch(e){}
+
+  },
+  {
+    passive:false
+  }
+);
+
+
+/* =====================================================
+   FINGER CANCEL
+===================================================== */
+
+canvas.addEventListener(
+  "pointercancel",
+  event => {
+
+    try{
+
+      canvas.releasePointerCapture(
+        event.pointerId
+      );
+
+    }
+    catch(e){}
+
+  }
+);
+
+
+/* =====================================================
+   PREVENT DOUBLE TAP
+===================================================== */
+
+canvas.addEventListener(
+  "dblclick",
+  event => {
+
+    event.preventDefault();
+
+  },
+  {
+    passive:false
+  }
+);
+
+
+/* =====================================================
+   PREVENT SCROLL / ZOOM
+===================================================== */
+
+document.addEventListener(
+  "touchmove",
+  event => {
+
+    event.preventDefault();
+
+  },
+  {
+    passive:false
+  }
+);
+
+
+/* =====================================================
+   BUTTONS
+===================================================== */
+
+startBtn.onclick =
+  begin;
+
+
+restartBtn.onclick =
+  begin;
+
+
+/* =====================================================
+   GAME LOOP
+===================================================== */
+
+function gameLoop(
+  time
+){
+
+  const dt =
+    Math.min(
+      .033,
+      (time - lastTime) /
+      1000 || 0
+    );
+
+
+  lastTime =
+    time;
+
+
+  update(dt);
+
+  draw();
+
+
+  requestAnimationFrame(
+    gameLoop
+  );
+
+}
+
+
+requestAnimationFrame(
+  gameLoop
+);
+
+</script>
+
+</body>
+</html>
